@@ -21,9 +21,10 @@ BALL_COLOR = (245, 245, 245)
 BLACK = (20, 20, 20)          
 GOAL_COLOR = (200, 200, 200)
 GOLD = (255, 215, 0)
+GRAY = (180, 180, 180)
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Head Ball 2 - Pro Physics Edition")
+pygame.display.set_caption("Head Ball 2 - Rematch & Head Bounce Edition")
 clock = pygame.time.Clock()
 
 class Player:
@@ -60,7 +61,7 @@ class Player:
                 self.vel_y = self.jump_power
                 self.is_grounded = False
 
-        # Fisica Salto Modificata (Moltiplicatore 2.0 richiesto)
+        # Fisica Salto Modificata (Moltiplicatore 2.0)
         PLAYER_GRAVITY = 0.95
         if self.vel_y > 0:
             self.vel_y += PLAYER_GRAVITY * 2.0  
@@ -105,16 +106,16 @@ class Player:
                 if keys[pygame.K_f]: # Tiro teso
                     ball.vel_x = 24  
                     ball.vel_y = -1.5
-                elif keys[pygame.K_g]: # Pallonetto con parabola più bassa e tesa
-                    ball.vel_x = 19  # Aumentata spinta in avanti (da 15 a 19)
-                    ball.vel_y = -12 # Diminuita spinta verso l'alto (da -18 a -12)
+                elif keys[pygame.K_g]: # Pallonetto teso
+                    ball.vel_x = 19  
+                    ball.vel_y = -12 
             else:
                 if keys[pygame.K_MINUS] or keys[pygame.K_KP_MINUS] or keys[45]: # Tiro teso
                     ball.vel_x = -24 
                     ball.vel_y = -1.5
-                elif keys[pygame.K_PERIOD] or keys[pygame.K_KP_PERIOD] or keys[46]: # Pallonetto con parabola più bassa e tesa
-                    ball.vel_x = -19 # Aumentata spinta in avanti (da -15 a -19)
-                    ball.vel_y = -12 # Diminuita spinta verso l'alto (da -18 a -12)
+                elif keys[pygame.K_PERIOD] or keys[pygame.K_KP_PERIOD] or keys[46]: # Pallonetto teso
+                    ball.vel_x = -19 
+                    ball.vel_y = -12 
 
     def draw(self, surface):
         pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
@@ -171,16 +172,21 @@ class Ball:
         min_dist = self.radius + player.radius
 
         if distance < min_dist:
-            # FISICA NATURALE: Rimbalzo elastico solo sulla TESTA (metà superiore del giocatore)
+            # Rimbalzo elastico sulla TESTA (metà superiore del giocatore)
             if self.y < player.y + 5: 
                 angle = math.atan2(dy, dx)
                 self.x = player.x + min_dist * math.cos(angle)
                 self.y = player.y + min_dist * math.sin(angle)
-                speed = max(math.hypot(self.vel_x, self.vel_y) * self.elasticity, 6) 
-                self.vel_x = math.cos(angle) * speed
-                self.vel_y = math.sin(angle) * speed
+                
+                # --- AUMENTATO IL RIMBALZO SULLA TESTA ---
+                # Moltiplichiamo l'energia del rimbalzo per renderla reattiva quasi come il pavimento
+                speed = math.hypot(self.vel_x, self.vel_y)
+                bounce_power = max(speed * 0.95, 10) # Rimbalzo minimo alzato a 10 e conservazione velocità al 95%
+                
+                self.vel_x = math.cos(angle) * bounce_power
+                self.vel_y = math.sin(angle) * bounce_power
             else:
-                # Spinta laterale raso terra (il corpo spinge la palla camminando, senza farla rimbalzare via)
+                # Spinta laterale raso terra camminando
                 if self.x > player.x:
                     self.x = player.x + min_dist
                     if self.vel_x < player.speed: self.vel_x = player.speed
@@ -207,7 +213,6 @@ class Ball:
             self.y = 320 - self.radius if self.vel_y < 0 else 320 + self.radius
 
     def draw(self, surface):
-        # Disegna la scia visibile
         speed = math.hypot(self.vel_x, self.vel_y)
         if speed > 2: 
             for i, pos in enumerate(self.trail):
@@ -218,7 +223,6 @@ class Ball:
                     pygame.draw.circle(trail_surf, (174, 219, 243, alpha), (radius, radius), radius)
                     surface.blit(trail_surf, (int(pos[0] - radius), int(pos[1] - radius)))
 
-        # Base bianca della palla
         pygame.draw.circle(surface, BALL_COLOR, (int(self.x), int(self.y)), self.radius)
 
         # Sagome da calcio
@@ -246,7 +250,6 @@ class Ball:
             b_in_y = cy + (self.radius * 0.78) * math.sin(edge_angle)
             pygame.draw.circle(surface, BLACK, (int(b_in_x), int(b_in_y)), 3)
 
-        # Bordo circolare esterno
         pygame.draw.circle(surface, BLACK, (cx, cy), self.radius, 2)
 
 
@@ -279,7 +282,8 @@ def main():
     score_p2 = 0
     font = pygame.font.SysFont("Arial", 40, bold=True)
     goal_font = pygame.font.SysFont("Arial", 100, bold=True)
-    winner_font = pygame.font.SysFont("Arial", 65, bold=True) # Dimensione ridotta per non uscire dallo schermo
+    winner_font = pygame.font.SysFont("Arial", 65, bold=True) 
+    rematch_font = pygame.font.SysFont("Arial", 30, bold=True) # Font per l'avviso di rivincita
 
     match_duration = 90 
     start_ticks = pygame.time.get_ticks()
@@ -328,6 +332,16 @@ def main():
                     ball = Ball(WIDTH // 2, 200)
                     player1.x, player1.y = 200, 400
                     player2.x, player2.y = 800, 400
+        else:
+            # --- GESTIONE RIVINCITA (Tasto R) ---
+            if keys[pygame.K_r]:
+                score_p1 = 0
+                score_p2 = 0
+                start_ticks = pygame.time.get_ticks()
+                game_over = False
+                ball = Ball(WIDTH // 2, 200)
+                player1.x, player1.y = 200, 400
+                player2.x, player2.y = 800, 400
 
         draw_scenery()
         player1.draw(screen)
@@ -344,6 +358,7 @@ def main():
             goal_text = goal_font.render("GOAL!", True, GOLD)
             screen.blit(goal_text, (WIDTH//2 - goal_text.get_width()//2, HEIGHT//2 - goal_text.get_height()//2))
 
+        # Schermata Finale con Scritta Rivincita
         if game_over:
             end_surf = pygame.Surface((WIDTH, HEIGHT))
             end_surf.fill((0, 0, 0))
@@ -361,7 +376,11 @@ def main():
                 color = WHITE
                 
             res_text = winner_font.render(winner_text, True, color)
-            screen.blit(res_text, (WIDTH//2 - res_text.get_width()//2, HEIGHT//2 - res_text.get_height()//2))
+            screen.blit(res_text, (WIDTH//2 - res_text.get_width()//2, HEIGHT//2 - res_text.get_height()//2 - 30))
+            
+            # Testo aggiuntivo per la rivincita
+            rematch_text = rematch_font.render("Premi R per Rivincita", True, GRAY)
+            screen.blit(rematch_text, (WIDTH//2 - rematch_text.get_width()//2, HEIGHT//2 - rematch_text.get_height()//2 + 50))
 
         score_text = font.render(f"{score_p1} - {score_p2}", True, WHITE)
         screen.blit(score_text, (WIDTH // 2 - score_text.get_width() // 2, 20))
